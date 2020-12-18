@@ -1,0 +1,24 @@
+# depslib dependency file v1.0
+1608035412 source:c:\codeblocks\mk14wavwrite\main.c
+	<stdio.h>
+	<assert.h>
+	<math.h>
+	"make_wav.h"
+	<stdio.h>
+	<stdlib.h>
+	<assert.h>
+	<math.h>
+	"make_wav.h"
+
+1607987932 c:\codeblocks\mk14wavwrite\make_wav.h
+
+1608156630 source:c:\codeblocks\hextowav\main.c
+	<stdio.h>
+	<string.h>
+	<stdlib.h>
+	<assert.h>
+	<math.h>
+	"make_wav.h"
+
+1608156604 c:\codeblocks\hextowav\make_wav.h
+
