@@ -7,13 +7,14 @@
 
 #define S_RATE  (11025L) //(44100L)
 
-
 #define BUF_SIZE 352L //1411L
+
 short int buf_pip_ZERO[BUF_SIZE+1] = {0};
 short int buf_pip_ONE[BUF_SIZE+1] = {0};
 
 char * iFileName = NULL;
-char * oFileName = "out.wav";
+
+unsigned int startAddr=0xffff;
 
 //convert two ascii characters to a byte value
 unsigned int twochar(unsigned char *dfile){
@@ -32,6 +33,7 @@ unsigned int twochar(unsigned char *dfile){
     return thisByte;
 }
 
+/* write out a 16b int to chars in little endian orientation */
 void write_little_endian(unsigned int word, int num_bytes, FILE *wav_file)
 {
     unsigned buf;
@@ -42,32 +44,35 @@ void write_little_endian(unsigned int word, int num_bytes, FILE *wav_file)
         word >>= 8;
     }
 }
+
 long int sfile_len = 0;
 long int dfile_len = 0;
 unsigned char *sfile = NULL;
 unsigned char *dfile = NULL;
+
+// debug:
 //duck.hex 0x0f12
 unsigned char Xdfile[] = "\
 C40D35C40031C401C8F4C410C8F1C400C8EEC40801C0E71E\
 C8E49404C4619002C400C9808F01C0D89C0EC180E4FF9808\
 C8CEC0CAE480C8C64003FC0194D6B8BF98C8C40790CE00";
 
-
 unsigned char Cdfile[] = "\
 000000000000000000000000000000000000000000000000\
 000000000000000000000000000000000000000000000000\
 0000000000000000000000000000000000000000000000";
+
 //write of all data bits for SubChunk2data.  Will return length of data.
 //if dummyWrite is true, then no data is actually written to the file.
-volatile     unsigned int dbg[300] = {0};
+//volatile  unsigned int dbg[300] = {0};
 unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigned int bytes_per_sample, FILE* wav_file) {
     unsigned long i, byteCnt=0;
     unsigned char thisByte;
-    //
+    // debug:
     //dfile_len = 48+48+45;
     //dfile = Xdfile;
     //dfile = Cdfile;
-    int d = 0;
+    //int d = 0;
 
     for(i = 0; i<=dfile_len; i+=2)
     {
@@ -79,7 +84,7 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
             thisByte = twochar(&dfile[i]);
 
             //debug
-            dbg[d++] = thisByte;
+            //dbg[d++] = thisByte;
 
             //create pips for each bit (LSB first)
             for(int nb=0; nb<=7; nb++)
@@ -100,7 +105,7 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
                     }
                 }
             }
-        //SubChunk2data
+            //SubChunk2data
         }
     }
     return byteCnt*BUF_SIZE*8;
@@ -110,7 +115,7 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
 /* information about the WAV file format from
     http://ccrma.stanford.edu/courses/422/projects/WaveFormat/
  */
-unsigned long write_wav(unsigned long size, char * filename, unsigned long num_samples, int s_rate)
+unsigned long write_wav(char * filename, unsigned long num_samples, int s_rate)
 {
     unsigned long retval=0;
     FILE* wav_file;
@@ -118,7 +123,6 @@ unsigned long write_wav(unsigned long size, char * filename, unsigned long num_s
     unsigned int num_channels;
     unsigned int bytes_per_sample;
     unsigned int byte_rate;
-    //unsigned long i;    /* counter for samples */
 
     num_channels = 1;   /* monoaural */
     bytes_per_sample = 2;
@@ -152,8 +156,6 @@ unsigned long write_wav(unsigned long size, char * filename, unsigned long num_s
     unsigned long num_bytes = bytes_per_sample*num_channels*
         write_SubChunk2(1, num_samples, bytes_per_sample, wav_file);
 
-    //num_samples = sizeof(dfile)*8*bytes_per_sample;
-
     //now write the SubChunk2size
     fwrite("data", 1, 4, wav_file); /*SubChunk2ID*/
     write_little_endian(num_bytes, 4, wav_file); /*SubChunk2size*/
@@ -170,9 +172,10 @@ unsigned long write_wav(unsigned long size, char * filename, unsigned long num_s
 void parseFile(unsigned char *sfile, unsigned char *dfile, long int sfile_len) {
 
     long int sidx=0, didx=0;
-    int nybbleCnt=0, byteCnt = 0;
+    unsigned int nybbleCnt=0, byteCnt = 0, thisAddr=0xffff;
     //clear destination array
     memset(dfile, 0, sfile_len);
+    startAddr = 0xffff;
     for (sidx = 0; sidx < sfile_len; sidx++){
         //scan for next StartCode
         if(sfile[sidx] == ':') {
@@ -182,8 +185,14 @@ void parseFile(unsigned char *sfile, unsigned char *dfile, long int sfile_len) {
             byteCnt = twochar(&sfile[sidx]);
             sidx += 2;
             nybbleCnt = byteCnt*2;
-            //skip address
-            sidx += 4;
+            //extract 4-byte address and keep the first one
+            thisAddr = 256*twochar(&sfile[sidx]);
+            sidx += 2;
+            thisAddr += twochar(&sfile[sidx]);
+            sidx += 2;
+            if(startAddr == 0xffff ) {
+                startAddr = thisAddr;
+            }
             //skip recordType
             sidx += 2;
             //copy out the data
@@ -229,7 +238,7 @@ int read_hex_file( char *file_name) {
 
 int main(int argc, char ** argv)
 {
-    int i;
+    int i, iLen;
     //float t;
     float amplitude = 32000;
     float freq_Hz = 1000;
@@ -244,11 +253,11 @@ int main(int argc, char ** argv)
 
         //extract file name from DOS command line
         iFileName = argv[1];
-        printf("input file = %s\n",iFileName);
-
+        iLen = strcspn(argv[1] , ".");
+        printf("input file %s\n",iFileName);
         read_hex_file(iFileName);
 
-        /* fill buffers with a sine wave pips*/
+        /* build the sine wave "pips" */
         for (i=0; i<BUF_SIZE; i++)
         {
             phase += freq_radians_per_sample;
@@ -264,12 +273,21 @@ int main(int argc, char ** argv)
             }
         }
 
+        // create filename
+        //remove extension from the input filename
+        iFileName[iLen] = 0;
+        //create space for the output filename
+        char *oFileStr = (char *)calloc(iLen + 5 + 4 + 1 , sizeof(char));
+        //copy in the input filename
+        strcpy(&oFileStr[0], iFileName);
+        //append the start address
+        strcat(oFileStr, "_");
+        itoa(startAddr, &oFileStr[iLen+1], 16);
+        //append the new extension
+        strcat(oFileStr, ".wav");
 
-        //dummy write to obtain expected filesize
-        //unsigned long size = write_wav(0, "test.wav", BUF_SIZE_32ms, &buf_pip_32ms[0], S_RATE);
-        //write WAV
-        write_wav(0, oFileName, BUF_SIZE, S_RATE);
-        printf("output file = %s\n", oFileName);
+        printf("writing to file %s\n", oFileStr);
+        write_wav(oFileStr, BUF_SIZE, S_RATE);
     }
     return 0;
 }

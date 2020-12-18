@@ -12,7 +12,7 @@
 
 1607987932 c:\codeblocks\mk14wavwrite\make_wav.h
 
-1608156630 source:c:\codeblocks\hextowav\main.c
+1608313700 source:c:\codeblocks\hextowav\main.c
 	<stdio.h>
 	<string.h>
 	<stdlib.h>
@@ -20,5 +20,15 @@
 	<math.h>
 	"make_wav.h"
 
-1608156604 c:\codeblocks\hextowav\make_wav.h
+1608310446 c:\codeblocks\hextowav\make_wav.h
+
+1608315793 source:c:\mk14proj\mk14wavwrite\main.c
+	<stdio.h>
+	<string.h>
+	<stdlib.h>
+	<assert.h>
+	<math.h>
+	"make_wav.h"
+
+1608315375 c:\mk14proj\mk14wavwrite\make_wav.h
 
