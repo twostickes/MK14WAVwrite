@@ -4,7 +4,9 @@ This consists of bursts of 1khz tones in the same way MK14 + tape drive would cr
 However this WAV file is free of noise, distortion, motor speed errors.
 
 The chose IDE is Code::Blocks 20.03 and use project file MK14WAVwrite.cbp.
-Code output is a windows .exe file and includes command line options.
+Code output is a windows .exe file and includes command line options
+ie at ..\bin\Debug\MK14WAVwrite.exe
+.bat files can be created to rename files eg out.wav to duck_0f12.wav
 
 
 information about the WAV file format from
