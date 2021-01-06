@@ -3,7 +3,9 @@ Converts Intel HEX formated data for MK14 to audio .wav file for the tape drive.
 This consists of bursts of 1khz tones in the same way MK14 + tape drive would create them for tape cassette use.
 However this WAV file is free of noise, distortion, motor speed errors.
 
-The chose IDE is Code::Blocks 20.03 and use project file MK14WAVwrite.cbp.
+The .exe is stored at MK14WAVwrite\bin\Release, with some batch files and hex files.
+
+The chosen IDE is Code::Blocks 20.03 and use project file MK14WAVwrite.cbp.
 Code output is a windows .exe file and includes command line options
 ie at ..\bin\Debug\MK14WAVwrite.exe
 .bat files can be created to rename files eg out.wav to duck_0f12.wav

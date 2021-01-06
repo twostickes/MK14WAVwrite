@@ -11,10 +11,16 @@
 
 short int buf_pip_ZERO[BUF_SIZE+1] = {0};
 short int buf_pip_ONE[BUF_SIZE+1] = {0};
-
+short int buf_pip_PREAMBLE[BUF_SIZE+1] = {0};
+short int buf_pip_GAP[BUF_SIZE+1] = {0};
 char * iFileName = NULL;
-
 unsigned int startAddr=0xffff;
+long int sfile_len = 0;
+long int dfile_len = 0;
+unsigned char *sfile = NULL;
+unsigned char *dfile = NULL;
+int bInvert=0, bPreamble=0, b4MHzXtal=0;
+
 
 //convert two ascii characters to a byte value
 unsigned int twochar(unsigned char *dfile){
@@ -36,7 +42,7 @@ unsigned int twochar(unsigned char *dfile){
 /* write out a 16b int to chars in little endian orientation */
 void write_little_endian(unsigned int word, int num_bytes, FILE *wav_file)
 {
-    unsigned buf;
+    unsigned int buf;
     while(num_bytes>0)
     {   buf = word & 0xff;
         fwrite(&buf, 1,1, wav_file);
@@ -45,34 +51,41 @@ void write_little_endian(unsigned int word, int num_bytes, FILE *wav_file)
     }
 }
 
-long int sfile_len = 0;
-long int dfile_len = 0;
-unsigned char *sfile = NULL;
-unsigned char *dfile = NULL;
-
-// debug:
-//duck.hex 0x0f12
-unsigned char Xdfile[] = "\
-C40D35C40031C401C8F4C410C8F1C400C8EEC40801C0E71E\
-C8E49404C4619002C400C9808F01C0D89C0EC180E4FF9808\
-C8CEC0CAE480C8C64003FC0194D6B8BF98C8C40790CE00";
-
-unsigned char Cdfile[] = "\
-000000000000000000000000000000000000000000000000\
-000000000000000000000000000000000000000000000000\
-0000000000000000000000000000000000000000000000";
-
 //write of all data bits for SubChunk2data.  Will return length of data.
 //if dummyWrite is true, then no data is actually written to the file.
-//volatile  unsigned int dbg[300] = {0};
 unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigned int bytes_per_sample, FILE* wav_file) {
     unsigned long i, byteCnt=0;
     unsigned char thisByte;
-    // debug:
-    //dfile_len = 48+48+45;
-    //dfile = Xdfile;
-    //dfile = Cdfile;
-    //int d = 0;
+
+
+    //preamble
+    if(bPreamble) {
+        for (i=0; i<15; i++)
+        {
+            for(int nb=0; nb<=7; nb++) {
+                if(!dummyWrite) {
+                    for(int k=0; k<BUF_SIZE; k++) {
+                        write_little_endian((unsigned int)(buf_pip_PREAMBLE[k]),bytes_per_sample, wav_file);
+                    }
+                }
+            }
+            byteCnt++;
+        }
+        if(!bInvert) {
+            for (i=0; i<8; i++)
+            {
+                for(int nb=0; nb<=7; nb++) {
+                    if(!dummyWrite) {
+                        for(int k=0; k<BUF_SIZE; k++) {
+                            write_little_endian((unsigned int)(buf_pip_GAP[k]),bytes_per_sample, wav_file);
+                        }
+                    }
+                }
+                byteCnt++;
+            }
+        }
+    }
+
 
     for(i = 0; i<=dfile_len; i+=2)
     {
@@ -82,9 +95,6 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
             byteCnt++;
             //extract hex value
             thisByte = twochar(&dfile[i]);
-
-            //debug
-            //dbg[d++] = thisByte;
 
             //create pips for each bit (LSB first)
             for(int nb=0; nb<=7; nb++)
@@ -236,6 +246,9 @@ int read_hex_file( char *file_name) {
 }
 
 
+void testArgv() {
+}
+
 int main(int argc, char ** argv)
 {
     int i, iLen;
@@ -244,11 +257,43 @@ int main(int argc, char ** argv)
     float freq_Hz = 1000;
     float phase=0;
 
-    float freq_radians_per_sample = freq_Hz*2*M_PI/S_RATE;
+    float freq_radians_per_sample = 0;//freq_Hz*2*M_PI/S_RATE;
+
+     //printf("\ncmdline args count=%i\n", argc);
+
+     /* First argument is executable name only */
+     //printf("\nexe name=%s", argv[1]);
+
+     for (i=1; i< argc; i++) {
+         //printf("\narg%d=%s", i, argv[i]);
+         if(argv[i][0] == '-') {
+            //set any internal switches
+            switch (argv[i][1])
+            {
+                case 'i':
+                case 'I':
+                    bInvert = 1;
+                    printf("\n* wav data will be inverted.");
+                break;
+                case 'p':
+                case 'P':
+                    bPreamble = 1;
+                    printf("\n* wav will have a preamble tone.");
+                break;
+                case '4':
+                    b4MHzXtal = 1;
+                    printf("\n* pip timings will assume a 4.000MHz Xtal.");
+                break;
+            }
+         }
+     }
+
+     printf("\n");
 
 
-    if(argc != 2) {
-        printf("specify a Intel Hex file\neg MK14WAVwrite DUCK.HEX\n");
+
+    if(0) {//argc == 0) {
+        printf("specify an Intel Hex file\neg MK14WAVwrite DUCK.HEX\n");
     } else {
 
         //extract file name from DOS command line
@@ -257,22 +302,47 @@ int main(int argc, char ** argv)
         printf("input file %s\n",iFileName);
         read_hex_file(iFileName);
 
+
+    //}
+     //while(1);
+//#if 0
+
         /* build the sine wave "pips" */
+        if(b4MHzXtal) {
+            freq_radians_per_sample = freq_Hz*2*M_PI/S_RATE;
+        } else {
+            freq_radians_per_sample = freq_Hz*2*M_PI/S_RATE;
+        }
+
+        //data stream
         for (i=0; i<BUF_SIZE; i++)
         {
             phase += freq_radians_per_sample;
-            if(i<BUF_SIZE/8){ //4ms in 32ms
-                buf_pip_ZERO[i] = (int)(amplitude * sin(phase));
+            buf_pip_PREAMBLE[i] = (int)(amplitude * sin(phase));
+            if(bInvert) {
+                if(i>BUF_SIZE/8){ //4ms in 32ms
+                    buf_pip_ZERO[i] = (int)(amplitude * sin(phase));
+                } else {
+                    buf_pip_ZERO[i] = (int)(0);
+                }
+                if(i>BUF_SIZE/2){ //16ms in 32ms
+                    buf_pip_ONE[i] = (int)(amplitude * sin(phase));
+                } else {
+                    buf_pip_ONE[i] = (int)(0);
+                }
             } else {
-                buf_pip_ZERO[i] = (int)(0);
-            }
-            if(i<BUF_SIZE/2){ //16ms in 32ms
-                buf_pip_ONE[i] = (int)(amplitude * sin(phase));
-            } else {
-                buf_pip_ONE[i] = (int)(0);
+                if(i<BUF_SIZE/8){ //4ms in 32ms
+                    buf_pip_ZERO[i] = (int)(amplitude * sin(phase));
+                } else {
+                    buf_pip_ZERO[i] = (int)(0);
+                }
+                if(i<BUF_SIZE/2){ //16ms in 32ms
+                    buf_pip_ONE[i] = (int)(amplitude * sin(phase));
+                } else {
+                    buf_pip_ONE[i] = (int)(0);
+                }
             }
         }
-
         // create filename
         //remove extension from the input filename
         iFileName[iLen] = 0;
@@ -281,14 +351,27 @@ int main(int argc, char ** argv)
         //copy in the input filename
         strcpy(&oFileStr[0], iFileName);
         //append the start address
-        strcat(oFileStr, "_");
-        itoa(startAddr, &oFileStr[iLen+1], 16);
+        strcat(oFileStr, "_0");
+        itoa(startAddr, &oFileStr[iLen+2], 16);
+
+        //append any options
+        if(bInvert) {
+            strcat(oFileStr, "_i");
+        }
+        if(bPreamble) {
+            strcat(oFileStr, "_p");
+        }
+        if(b4MHzXtal) {
+            strcat(oFileStr, "_4");
+        }
+
         //append the new extension
         strcat(oFileStr, ".wav");
 
         printf("writing to file %s\n", oFileStr);
         write_wav(oFileStr, BUF_SIZE, S_RATE);
     }
+//#endif //0
     return 0;
 }
 
