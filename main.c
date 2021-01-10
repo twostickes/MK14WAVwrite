@@ -4,22 +4,27 @@
 #include <assert.h>
 #include <math.h>
 #include "make_wav.h"
-
+#include <conio.h>
 #define S_RATE  (11025L) //(44100L)
 
-#define BUF_SIZE 352L //1411L
+#define BUF_SIZE_400 352L //1411L
+#define BUF_SIZE_443 (long)(352*4.0/4.43361875) //1302L
 
-short int buf_pip_ZERO[BUF_SIZE+1] = {0};
-short int buf_pip_ONE[BUF_SIZE+1] = {0};
-short int buf_pip_PREAMBLE[BUF_SIZE+1] = {0};
-short int buf_pip_GAP[BUF_SIZE+1] = {0};
+
+
+short int buf_pip_ZERO[BUF_SIZE_400+1] = {0};
+short int buf_pip_ONE[BUF_SIZE_400+1] = {0};
+short int buf_pip_PREAMBLE[BUF_SIZE_400+1] = {0};
+short int buf_pip_GAP[BUF_SIZE_400+1] = {0};
 char * iFileName = NULL;
 unsigned int startAddr=0xffff;
 long int sfile_len = 0;
 long int dfile_len = 0;
 unsigned char *sfile = NULL;
 unsigned char *dfile = NULL;
-int bInvert=0, bPreamble=0, b4MHzXtal=0;
+int bInvert=0, bPreamble=0, b4MHzXtal=0, bRunAddress=0;
+long pip_len = 0;
+char runAddrStr[255] = {0};
 
 
 //convert two ascii characters to a byte value
@@ -64,7 +69,7 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
         {
             for(int nb=0; nb<=7; nb++) {
                 if(!dummyWrite) {
-                    for(int k=0; k<BUF_SIZE; k++) {
+                    for(int k=0; k<pip_len; k++) {
                         write_little_endian((unsigned int)(buf_pip_PREAMBLE[k]),bytes_per_sample, wav_file);
                     }
                 }
@@ -76,7 +81,21 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
             {
                 for(int nb=0; nb<=7; nb++) {
                     if(!dummyWrite) {
-                        for(int k=0; k<BUF_SIZE; k++) {
+                        for(int k=0; k<pip_len; k++) {
+                            write_little_endian((unsigned int)(buf_pip_GAP[k]),bytes_per_sample, wav_file);
+                        }
+                    }
+                }
+                byteCnt++;
+            }
+        }
+    } else {
+        if(!bInvert) {
+            for (i=0; i<8; i++)
+            {
+                for(int nb=0; nb<=7; nb++) {
+                    if(!dummyWrite) {
+                        for(int k=0; k<pip_len; k++) {
                             write_little_endian((unsigned int)(buf_pip_GAP[k]),bytes_per_sample, wav_file);
                         }
                     }
@@ -85,7 +104,6 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
             }
         }
     }
-
 
     for(i = 0; i<=dfile_len; i+=2)
     {
@@ -103,13 +121,13 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
                 if(thisByte & mask)
                 {
                     if(!dummyWrite) {
-                        for(int k=0; k<BUF_SIZE; k++) {
+                        for(int k=0; k<pip_len; k++) {
                             write_little_endian((unsigned int)(buf_pip_ONE[k]),bytes_per_sample, wav_file);
                         }
                     }
                 } else {
                     if(!dummyWrite) {
-                        for(int k=0; k<BUF_SIZE; k++) {
+                        for(int k=0; k<pip_len; k++) {
                             write_little_endian((unsigned int)(buf_pip_ZERO[k]),bytes_per_sample, wav_file);
                         }
                     }
@@ -118,7 +136,7 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
             //SubChunk2data
         }
     }
-    return byteCnt*BUF_SIZE*8;
+    return byteCnt*pip_len*8;
 }
 
 
@@ -259,6 +277,15 @@ int main(int argc, char ** argv)
 
     float freq_radians_per_sample = 0;//freq_Hz*2*M_PI/S_RATE;
 
+    //4.43361875MHz
+    if(b4MHzXtal) {
+        pip_len = BUF_SIZE_400;
+    } else {
+        pip_len = BUF_SIZE_443;
+    }
+
+      //system("voice.bat");
+
      //printf("\ncmdline args count=%i\n", argc);
 
      /* First argument is executable name only */
@@ -271,18 +298,22 @@ int main(int argc, char ** argv)
             switch (argv[i][1])
             {
                 case 'i':
-                case 'I':
                     bInvert = 1;
                     printf("\n* wav data will be inverted.");
                 break;
                 case 'p':
-                case 'P':
                     bPreamble = 1;
                     printf("\n* wav will have a preamble tone.");
                 break;
-                case '4':
+                case 'x':
                     b4MHzXtal = 1;
                     printf("\n* pip timings will assume a 4.000MHz Xtal.");
+                break;
+                case 'g':
+                    bRunAddress = 1;
+                    printf("\n* GO address will be specified in filename.");
+                    //strcat(runAddrStr, "0x");
+                    strcat(runAddrStr, argv[i]);
                 break;
             }
          }
@@ -307,36 +338,32 @@ int main(int argc, char ** argv)
      //while(1);
 //#if 0
 
-        /* build the sine wave "pips" */
-        if(b4MHzXtal) {
-            freq_radians_per_sample = freq_Hz*2*M_PI/S_RATE;
-        } else {
-            freq_radians_per_sample = freq_Hz*2*M_PI/S_RATE;
-        }
+        /* build the sine wave "pips" as 1.0kHz*/
+        freq_radians_per_sample = freq_Hz*2*M_PI/S_RATE;
 
         //data stream
-        for (i=0; i<BUF_SIZE; i++)
+        for (i=0; i<pip_len; i++)
         {
             phase += freq_radians_per_sample;
             buf_pip_PREAMBLE[i] = (int)(amplitude * sin(phase));
             if(bInvert) {
-                if(i>BUF_SIZE/8){ //4ms in 32ms
+                if(i>pip_len/8){ //4ms in 32ms
                     buf_pip_ZERO[i] = (int)(amplitude * sin(phase));
                 } else {
                     buf_pip_ZERO[i] = (int)(0);
                 }
-                if(i>BUF_SIZE/2){ //16ms in 32ms
+                if(i>pip_len/2){ //16ms in 32ms
                     buf_pip_ONE[i] = (int)(amplitude * sin(phase));
                 } else {
                     buf_pip_ONE[i] = (int)(0);
                 }
             } else {
-                if(i<BUF_SIZE/8){ //4ms in 32ms
+                if(i<pip_len/8){ //4ms in 32ms
                     buf_pip_ZERO[i] = (int)(amplitude * sin(phase));
                 } else {
                     buf_pip_ZERO[i] = (int)(0);
                 }
-                if(i<BUF_SIZE/2){ //16ms in 32ms
+                if(i<pip_len/2){ //16ms in 32ms
                     buf_pip_ONE[i] = (int)(amplitude * sin(phase));
                 } else {
                     buf_pip_ONE[i] = (int)(0);
@@ -347,7 +374,7 @@ int main(int argc, char ** argv)
         //remove extension from the input filename
         iFileName[iLen] = 0;
         //create space for the output filename
-        char *oFileStr = (char *)calloc(iLen + 5 + 4 + 1 , sizeof(char));
+        char *oFileStr = (char *)calloc(255 , sizeof(char));
         //copy in the input filename
         strcpy(&oFileStr[0], iFileName);
         //append the start address
@@ -356,20 +383,23 @@ int main(int argc, char ** argv)
 
         //append any options
         if(bInvert) {
-            strcat(oFileStr, "_i");
+            strcat(oFileStr, "-i");
         }
         if(bPreamble) {
-            strcat(oFileStr, "_p");
+            strcat(oFileStr, "-p");
         }
         if(b4MHzXtal) {
-            strcat(oFileStr, "_4");
+            strcat(oFileStr, "-x");
+        }
+        if(bRunAddress) {
+            strcat(oFileStr, runAddrStr);
         }
 
         //append the new extension
         strcat(oFileStr, ".wav");
 
         printf("writing to file %s\n", oFileStr);
-        write_wav(oFileStr, BUF_SIZE, S_RATE);
+        write_wav(oFileStr, pip_len, S_RATE);
     }
 //#endif //0
     return 0;

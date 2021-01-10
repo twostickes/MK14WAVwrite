@@ -5,6 +5,11 @@ However this WAV file is free of noise, distortion, motor speed errors.
 
 The .exe is stored at MK14WAVwrite\bin\Release, with some batch files and hex files.
 
+command line switches
+-p add a preamble to the wav (used to defeat the tape machine AGC)
+-i invert the pips (used if Tape Interface uses invertors in the data stream (unconventional!)
+-g add a GO start address to the filename (sometimes different to the HEX start address)
+
 The chosen IDE is Code::Blocks 20.03 and use project file MK14WAVwrite.cbp.
 Code output is a windows .exe file and includes command line options
 ie at ..\bin\Debug\MK14WAVwrite.exe
