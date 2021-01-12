@@ -22,14 +22,12 @@
 
 1608310446 c:\codeblocks\hextowav\make_wav.h
 
-1610306181 source:c:\mk14proj\mk14wavwrite\main.c
+1610489748 source:c:\mk14proj\mk14wavwrite\main.c
 	<stdio.h>
 	<string.h>
 	<stdlib.h>
 	<assert.h>
 	<math.h>
-	"make_wav.h"
-	<conio.h>
 
 1608315375 c:\mk14proj\mk14wavwrite\make_wav.h
 

@@ -3,13 +3,14 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <math.h>
-#include "make_wav.h"
-#include <conio.h>
+//#include <conio.h> //for system()
 #define S_RATE  (11025L) //(44100L)
 
-#define BUF_SIZE_400 352L //1411L
-#define BUF_SIZE_443 (long)(352*4.0/4.43361875) //1302L
+//#define BUF_SIZE_400 352L                       //1411L //lower freq xtal = standard 32ms buffer
+//#define BUF_SIZE_443 (long)(352*4.0/4.43361875) //1302L //higher freq xtal = smaller 28.87ms buffer
 
+#define BUF_SIZE_443 352L                          //1411L //higher freq xtal = standard 32ms buffer
+#define BUF_SIZE_400 390L //((long)(352.0*4.43361875/4.00)) //1302L //lower  freq xtal = larger 35.5ms buffer
 
 
 short int buf_pip_ZERO[BUF_SIZE_400+1] = {0};
@@ -23,6 +24,7 @@ long int dfile_len = 0;
 unsigned char *sfile = NULL;
 unsigned char *dfile = NULL;
 int bInvert=0, bPreamble=0, b4MHzXtal=0, bRunAddress=0;
+int nFiles=0;
 long pip_len = 0;
 char runAddrStr[255] = {0};
 
@@ -143,7 +145,7 @@ unsigned long write_SubChunk2(int dummyWrite, unsigned long num_samples, unsigne
 /* information about the WAV file format from
     http://ccrma.stanford.edu/courses/422/projects/WaveFormat/
  */
-unsigned long write_wav(char * filename, unsigned long num_samples, int s_rate)
+unsigned long write_wav(char * filename, int fileNum, unsigned long num_samples, int s_rate)
 {
     unsigned long retval=0;
     FILE* wav_file;
@@ -177,7 +179,6 @@ unsigned long write_wav(char * filename, unsigned long num_samples, int s_rate)
     write_little_endian(byte_rate, 4, wav_file);
     write_little_endian(num_channels*bytes_per_sample, 2, wav_file);  /* block align */
     write_little_endian(8*bytes_per_sample, 2, wav_file);  /* bits/sample */
-
 
     //dummy write of all data bits to get the data length
     //(this method avoids large buffers or intermediate files)
@@ -263,6 +264,11 @@ int read_hex_file( char *file_name) {
     return 0;
 }
 
+    //how many wav files are required for this hex file?
+    //int getNumWavFiles() {
+
+        //write_SubChunk2(1, num_samples, bytes_per_sample, wav_file);
+    //}
 
 void testArgv() {
 }
@@ -276,13 +282,6 @@ int main(int argc, char ** argv)
     float phase=0;
 
     float freq_radians_per_sample = 0;//freq_Hz*2*M_PI/S_RATE;
-
-    //4.43361875MHz
-    if(b4MHzXtal) {
-        pip_len = BUF_SIZE_400;
-    } else {
-        pip_len = BUF_SIZE_443;
-    }
 
       //system("voice.bat");
 
@@ -320,6 +319,13 @@ int main(int argc, char ** argv)
      }
 
      printf("\n");
+
+    //4.43361875MHz
+    if(b4MHzXtal) {
+        pip_len = BUF_SIZE_400;
+    } else {
+        pip_len = BUF_SIZE_443;
+    }
 
 
 
@@ -370,36 +376,50 @@ int main(int argc, char ** argv)
                 }
             }
         }
-        // create filename
-        //remove extension from the input filename
-        iFileName[iLen] = 0;
-        //create space for the output filename
-        char *oFileStr = (char *)calloc(255 , sizeof(char));
-        //copy in the input filename
-        strcpy(&oFileStr[0], iFileName);
-        //append the start address
-        strcat(oFileStr, "_0");
-        itoa(startAddr, &oFileStr[iLen+2], 16);
 
-        //append any options
-        if(bInvert) {
-            strcat(oFileStr, "-i");
-        }
-        if(bPreamble) {
-            strcat(oFileStr, "-p");
-        }
-        if(b4MHzXtal) {
-            strcat(oFileStr, "-x");
-        }
-        if(bRunAddress) {
-            strcat(oFileStr, runAddrStr);
-        }
+        //see how many wav files are required for this hex file
+        //nFiles = getNumWavFiles();
 
-        //append the new extension
-        strcat(oFileStr, ".wav");
 
-        printf("writing to file %s\n", oFileStr);
-        write_wav(oFileStr, pip_len, S_RATE);
+
+
+        nFiles = 1;
+
+
+
+
+        for(i=0; i<nFiles;i++) {
+            // create filename
+            //remove extension from the input filename
+            iFileName[iLen] = 0;
+            //create string for the output filename
+            char *oFileStr = (char *)calloc(255 , sizeof(char));
+            //copy in the input filename
+            strcpy(&oFileStr[0], iFileName);
+            //append the start address
+            strcat(oFileStr, "_0");
+            itoa(startAddr, &oFileStr[iLen+2], 16);
+
+            //append any options
+            if(bInvert) {
+                strcat(oFileStr, "-i");
+            }
+            if(bPreamble) {
+                strcat(oFileStr, "-p");
+            }
+            if(b4MHzXtal) {
+                strcat(oFileStr, "-x");
+            }
+            if(bRunAddress) {
+                strcat(oFileStr, runAddrStr);
+            }
+
+            //append the new extension
+            strcat(oFileStr, ".wav");
+
+            printf("writing to file %s\n", oFileStr);
+            write_wav(oFileStr, i, pip_len, S_RATE);
+        }
     }
 //#endif //0
     return 0;
