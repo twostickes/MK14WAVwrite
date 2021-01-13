@@ -1,3 +1,4 @@
+#define verStr "V1.12"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -284,6 +285,8 @@ int main(int argc, char ** argv)
     float freq_radians_per_sample = 0;//freq_Hz*2*M_PI/S_RATE;
 
       //system("voice.bat");
+
+    printf("Version "verStr"\nfrom https://github.com/twostickes/MK14WAVwrite.git\n");
 
      //printf("\ncmdline args count=%i\n", argc);
 
